@@ -1,6 +1,8 @@
 #  Singleword
 Experiments programmed by Mackenzie Bugg, Chris Naber, Kathleen Zarnott, and Yuyu Zeng.
 
+The original experiment uses "simonSingleWord", and the transfer experiment uses "simonSingleWord_v2".
+
 Data analysis done by Yuyu Zeng.
 
 A preprint of this study can be found at: https://osf.io/preprints/psyarxiv/63gaj

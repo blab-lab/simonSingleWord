@@ -1,4 +1,4 @@
-#  Singleword
+#  singleWord
 Experiments programmed by Mackenzie Bugg, Chris Naber, Kathleen Zarnott, and Yuyu Zeng.
 
 The original experiment uses "simonSingleWord", and the transfer experiment uses "simonSingleWord_v2".

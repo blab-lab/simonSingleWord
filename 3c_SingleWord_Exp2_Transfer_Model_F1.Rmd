@@ -1,0 +1,572 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy")
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+
+library(tidyverse)
+library(qdapTools)
+library(splitstackshape)
+
+library(lme4)
+library(lmerTest)
+library(buildmer)
+library(phia)
+
+library(r2glmm)
+library(effsize)
+
+library(ez)
+
+rm(list = ls())
+
+load("3_Exp2_Transfer.RData")
+```
+
+#Model trained syllables
+
+```{r}
+#Add classification labels
+
+temp1 <- data.frame(unique(data1$Content))
+colnames(temp1) <- "Content"
+
+temp1$Syllable <- c("head", "rest",
+                    "death", "bed",
+                    "bed", 
+                    "bed", "head",
+                    "head",
+                    "red", "head",
+                    "bed", "spread",
+                    "breast", "fed")
+
+temp1$Type1 <- c("Trained", "Novel",
+                 "Novel", "Trained",
+                 "Trained", 
+                 "Trained", "Trained",
+                 "Trained",
+                 "Novel", "Trained",
+                 "Trained", "Novel",
+                 "Novel", "Novel")
+
+data1$Syllable <- lookup(terms = data1$Content,
+                         key.match = temp1$Content,
+                         key.reassign = temp1$Syllable)
+
+data1$Type1 <- lookup(terms = data1$Content,
+                         key.match = temp1$Content,
+                         key.reassign = temp1$Type1)
+```
+
+```{r}
+#data to be analyzed
+
+data1b <- data1[which(data1$Syllable %in% c("bed", "head")), ]
+
+unique(data1b$Content)
+
+#Add Position_Adj
+
+temp1 <- data.frame(unique(data1b$Content))
+colnames(temp1) <- "Content"
+
+temp1$Position_Adj  <- c("Opposite", "Opposite",
+                         "Mono", 
+                         "Trained", "Trained",
+                         "Mono",
+                         "Original", "Original")
+
+data1b$Position_Adj <- lookup(terms = data1b$Content,
+                              key.match = temp1$Content,
+                              key.reassign = temp1$Position_Adj)
+
+#Exclude non-adapters
+
+data1b <- data1b[which(data1b$Speaker %in% var1), ]
+```
+
+```{r}
+#Re-level
+
+data1b$Syllable <- factor(data1b$Syllable)
+
+contrasts(data1b$Syllable) = contr.sum(2)
+
+contrasts(data1b$Syllable)
+
+
+data1b$Position_Adj <- factor(data1b$Position_Adj)
+
+data1b$Position_Adj <- relevel(data1b$Position_Adj, ref = "Trained",)
+
+contrasts(data1b$Position_Adj)
+
+
+data1b$List <- factor(data1b$List)
+
+contrasts(data1b$List) = contr.sum(2)
+
+contrasts(data1b$List)
+```
+
+```{r}
+f0 <- F1_Transfer ~ Syllable * Position_Adj * List + 
+  (Syllable * Position_Adj * List | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data1b,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    crit = "BIC", 
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data1b,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1b <- lmer(f2,
+           data = data1b,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1b)
+
+car::Anova(m1b, type = 3)
+
+save.image("3_Exp2_Transfer.RData")
+
+testInteractions(m1b, 
+                 fixed = c("Syllable"))
+
+testInteractions(m1b, 
+                 pairwise = c("Syllable"))
+
+testInteractions(m1b, 
+                 fixed = c("Syllable"),
+                 pairwise = c("Position_Adj"))
+
+testInteractions(m1b, 
+                 pairwise = c("Syllable"),
+                 fixed = c("Position_Adj"))
+
+testInteractions(m1b, 
+                 fixed = c("Position_Adj", "Syllable"))
+
+testInteractions(m1b, 
+                 pairwise = c("Syllable", "Position_Adj"))
+```
+
+```{r}
+#Summary
+aggregate(data1b$F1_Transfer,
+          list(data1b$Syllable), 
+          FUN = plotrix::std.error) 
+
+aggregate(data1b$F1_Transfer,
+          list(data1b$Position_Adj, data1b$Syllable), 
+          FUN = plotrix::std.error) 
+
+
+#Effect size
+
+r2beta(m1b, partial = TRUE, 
+       method = "nsj")
+
+#Cohen's d, Direction
+
+temp1 <- data1b[which(data1b$Syllable == "bed"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Position_Adj == "Trained"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Position_Adj == "Trained"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Position_Adj == "Original"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Position_Adj == "Original"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Position_Adj == "Opposite"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Position_Adj == "Opposite"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Position_Adj == "Mono"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Position_Adj == "Mono"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+```
+
+```{r}
+#Direct comparisons of chunks
+
+##Original
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Word == "bedhead"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "bed" & data1b$Word == "bedspread"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1b[which(data1b$Syllable == "head" & data1b$Word == "bedhead"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Word == "redhead"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+##Mono
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Word == "bedhead"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "bed" & data1b$Word == "bed"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+
+temp1 <- data1b[which(data1b$Syllable == "head" & data1b$Word == "bedhead"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Word == "head"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+#Opposite
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Word == "bedhead"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "bed" & data1b$Word == "deathbed"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1b[which(data1b$Syllable == "head" & data1b$Word == "bedhead"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Word == "headrest"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+```
+
+```{r}
+#Follow-up for discussion
+
+data1b$Type2 <- ifelse(data1b$Position_Adj == "Trained", "Trained", "Transfer")
+
+temp1 <- data1b[which(data1b$Syllable == "bed" & data1b$Type2 == "Transfer"), "F1_Transfer"]
+temp2 <- data1b[which(data1b$Syllable == "head" & data1b$Type2 == "Transfer"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+t.test(x = temp1, y = temp2)
+
+```
+
+
+```{r}
+#Save
+
+save.image("3_Exp2_Transfer.RData")
+```
+
+#Model novel syllables
+
+```{r}
+#data to be analyzed
+
+temp1 <- data1[which(data1$Type1 == "Novel"), ]
+temp2 <- data1[which(data1$Word == "bedhead"), ]
+
+data1c <- rbind(temp1, temp2)
+
+unique(data1c$Content)
+
+#Add Word_Adj
+
+temp1 <- data.frame(unique(data1c$Content))
+colnames(temp1) <- "Content"
+
+temp1$Word_Adj  <- c("Opposite", "Opposite", 
+                     "Original", "Original",
+                     "Novel", "Novel",
+                     "Trained", "Trained")
+
+data1c$Word_Adj <- lookup(terms = data1c$Content,
+                          key.match = temp1$Content,
+                          key.reassign = temp1$Word_Adj)
+
+#Exclude non-adapters
+
+data1c <- data1c[which(data1c$Speaker %in% var1), ]
+```
+
+```{r}
+#Re-level
+
+data1c$Item <- factor(data1c$Item)
+
+contrasts(data1c$Item) = contr.sum(2)
+
+contrasts(data1c$Item)
+
+
+data1c$Type1 <- factor(data1c$Type1)
+
+contrasts(data1c$Type1) = contr.sum(2)
+
+contrasts(data1c$Type1)
+
+
+data1c$List <- factor(data1c$List)
+
+contrasts(data1c$List) = contr.sum(2)
+
+contrasts(data1c$List)
+```
+
+```{r}
+f0 <- F1_Transfer ~ Item * Type1 * List + 
+  (Item * Type1 * List | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data1c,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    crit = "BIC", 
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data1c,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1c <- lmer(f2,
+           data = data1c,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1c)
+
+car::Anova(m1c, type = 3)
+
+save.image("3_Exp2_Transfer.RData")
+
+testInteractions(m1c, 
+                 fixed = c("Item"))
+
+testInteractions(m1c, 
+                 pairwise = c("Item"))
+
+testInteractions(m1c, 
+                 pairwise = c("Type1"))
+
+testInteractions(m1c, 
+                 fixed = c("Type1"))
+
+testInteractions(m1c, 
+                 pairwise = c("Item"),
+                 fixed = c("Type1"))
+
+testInteractions(m1c, 
+                 pairwise = c("Type1"),
+                 fixed = c("Item"))
+
+testInteractions(m1c, 
+                 pairwise = c("Type1", "Item"))
+
+testInteractions(m1c, 
+                 fixed = c("Item", "Type1"))
+```
+
+```{r}
+#Summary
+aggregate(data1c$F1_Transfer,
+          list(data1c$Item), 
+          FUN = plotrix::std.error) 
+
+aggregate(data1c$F1_Transfer,
+          list(data1c$Item, data1c$Type1), 
+          FUN = plotrix::std.error) 
+
+#Effect size
+
+r2beta(m1c, partial = TRUE, 
+       method = "nsj")
+
+#Cohen's d, Direction
+
+temp1 <- data1c[which(data1c$Item == "1"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Type1 == "Trained"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "1" & data1c$Type1 == "Novel"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "2" & data1c$Type1 == "Trained"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Type1 == "Novel"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Type1 == "Trained"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Type1 == "Trained"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Type1 == "Novel"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Type1 == "Novel"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+```
+
+
+#Follow-up modeling of novel syllables
+
+```{r}
+#Re-level
+
+data1c$Word_Adj <- factor(data1c$Word_Adj)
+
+data1c$Word_Adj = relevel(data1c$Word_Adj, ref = "Trained")
+
+contrasts(data1c$Word_Adj)
+```
+
+```{r}
+f0 <- F1_Transfer ~ Item * Word_Adj * List + 
+  (Item * Word_Adj * List | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data1c,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    crit = "BIC", 
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data1c,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1d <- lmer(f2,
+           data = data1c,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1d)
+
+car::Anova(m1d, type = 3)
+
+save.image("3_Exp2_Transfer.RData")
+
+testInteractions(m1d, 
+                 fixed = c("Item"))
+
+testInteractions(m1d, 
+                 pairwise = c("Item"))
+
+testInteractions(m1d, 
+                 pairwise = c("Word_Adj"))
+
+testInteractions(m1d, 
+                 fixed = c("Word_Adj"))
+
+testInteractions(m1d, 
+                 pairwise = c("Item"),
+                 fixed = c("Word_Adj"))
+
+testInteractions(m1d, 
+                 pairwise = c("Word_Adj"),
+                 fixed = c("Item"))
+
+testInteractions(m1d, 
+                 pairwise = c("Word_Adj", "Item"))
+
+testInteractions(m1d, 
+                 fixed = c("Item", "Word_Adj"))
+```
+
+```{r}
+#Summary
+
+aggregate(data1c$F1_Transfer,
+          list(data1c$Item), 
+          FUN = plotrix::std.error) 
+
+aggregate(data1c$F1_Transfer,
+          list(data1c$Item, data1c$Word_Adj), 
+          FUN = plotrix::std.error) 
+
+#Effect size
+
+r2beta(m1d, partial = TRUE, 
+       method = "nsj")
+
+0.026 + 0.018 + 0.010 
+
+0.055 +  0.053 + 0.053
+
+#Cohen's d, Direction
+
+temp1 <- data1c[which(data1c$Item == "1"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Word_Adj == "Novel"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Word_Adj == "Novel"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Word_Adj == "Trained"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Word_Adj == "Trained"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Word_Adj == "Original"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Word_Adj == "Original"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+
+temp1 <- data1c[which(data1c$Item == "1" & data1c$Word_Adj == "Opposite"), "F1_Transfer"]
+temp2 <- data1c[which(data1c$Item == "2" & data1c$Word_Adj == "Opposite"), "F1_Transfer"]
+
+cohen.d(temp1, temp2)
+```
+
+```{r}
+#Save
+
+save.image("3_Exp2_Transfer.RData")
+```

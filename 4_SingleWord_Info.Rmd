@@ -1,0 +1,44 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy")
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+
+```
+
+#Import
+```{r}
+#Overall
+Summary1 <- read.csv("//wcs-cifs/wc/smng/experiments/simonSingleWord/acousticdata/R_Zyy/1_Formant/2_ProceesedData/0_Shift_Exp1.csv")
+
+Summary2 <- read.csv("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy/1_Formant/2_ProceesedData/0_Shift_Exp2.csv")
+```
+
+```{r}
+#F1
+
+temp1 <- Summary2[-which(Summary2$Speaker %in% c("sp656", "sp638", "sp644")), ]
+
+temp1$F1_Abs <- abs(temp1$F1)
+
+mean(temp1$F1_Abs)
+
+#F2
+
+temp2 <- Summary2[-which(Summary2$Speaker %in% c("sp626", "sp643", 
+                                           "sp648", "sp656", "sp657",
+                                           "sp638", "sp628", "sp620", "sp631")), ]
+
+temp2$F2_Abs <- abs(temp2$F2)
+
+mean(temp2$F2_Abs)
+```
+

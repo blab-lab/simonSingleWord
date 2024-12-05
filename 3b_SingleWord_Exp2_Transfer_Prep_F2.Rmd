@@ -1,0 +1,290 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy")
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+
+library(tidyverse)
+library(qdapTools)
+library(splitstackshape)
+
+library(lme4)
+library(lmerTest)
+library(buildmer)
+library(phia)
+
+library(r2glmm)
+library(effsize)
+
+library(ez)
+
+rm(list = ls())
+
+load("3_Exp2_Transfer.RData")
+```
+
+#Import Experiment 2 data
+
+```{r}
+data2 <- read.csv("1_Formant/2_ProceesedData/3_Formants_Mean_Trial.csv")
+
+#Restrict to transfer data 
+
+table(data2$Phase)
+
+data2 <- data2[which(data2$Phase %in% c("Transfer1", "Transfer2")), ]
+
+#Exclude participants without intended F2 perturbations
+
+data2 <- data2[-which(data2$Speaker %in% c("sp626", "sp643", 
+                                           "sp648", "sp656", "sp657")), ]
+
+length(unique(data2$Speaker))
+```
+
+```{r}
+#Normalization
+
+data2$Content <- paste(data2$Word, data2$Item, sep = "_")
+
+unique(data2$Content)
+
+#Reference data
+
+temp1 <- data2[which(data2$Phase == "Transfer1"), ]
+
+temp2 <- aggregate(temp1$meanF2_mel,
+                   list(temp1$Content, temp1$Speaker),
+                   FUN = mean)
+
+#Pair
+
+data2$Tracer <- paste(data2$Speaker, data2$Content, sep = "_")
+
+colnames(temp2) <- c("Content", "Speaker", "Value")
+
+temp2$Tracer <- paste(temp2$Speaker, temp2$Content, sep = "_")
+
+data2$F2_Ref <- lookup(terms = data2$Tracer,
+                       key.match = temp2$Tracer,
+                       key.reassign = temp2$Value)
+
+data2$F2_Transfer <- data2$meanF2_mel - data2$F2_Ref
+```
+
+```{r}
+#Sign-flip
+
+data2$F2_Transfer <- ifelse(data2$List == "shiftAEshiftIH", data2$F2_Transfer * -1, data2$F2_Transfer)
+
+#Retain only the post-training data
+
+data2 <- data2[which(data2$Phase == "Transfer2"), ]
+```
+
+#Identify adapters based on bedhead
+
+```{r}
+data2a <- data2[which(data2$Word == "bedhead"), ]
+
+TEMP1 <- c()
+
+for(i in unique(data2a$Speaker)) {
+  
+  temp1 <- data2a[which(data2a$Speaker == i), ]
+  
+  temp2 <- ezBoot(data = temp1, 
+                  dv = F2_Transfer, 
+                  within = .(Item),
+                  wid = .(Trial),
+                  resample_within = FALSE,
+                  iterations = 1e4)
+  
+  #Extract data
+  temp3 <- ezPlot2(preds = temp2,
+                x = Item, 
+                CI = .95, 
+                do_plot = FALSE, 
+                print_code = TRUE)
+  
+  temp4 <- temp3$boot_stats ## CI
+  temp5 <- temp3$cells ## Mean
+  
+  summary_temp <- merge(temp4, temp5,
+                   by = c("Item")) 
+  
+  colnames(summary_temp) <- c("Position", "Lo", "Hi", "CI", "F2_Transfer")
+  
+  summary_temp$Speaker <- i
+  
+  TEMP1 <- rbind(TEMP1, summary_temp)
+  
+}
+
+DATA2 <- TEMP1
+
+save.image("3_Exp2_Transfer.RData")
+```
+
+```{r}
+#Check the distance within speakers
+TEMP1 <- c()
+
+for(i in unique(DATA2$Speaker)) {
+  
+  temp1 <- DATA2[which(DATA2$Speaker == i), ]
+  
+  temp1$DownUp <- temp1$Lo[2] - temp1$Hi[1]
+  
+  temp1 <- temp1[1, ]
+  
+  TEMP1 <- rbind(TEMP1, temp1)
+  
+}
+  
+DATA2a <- TEMP1
+
+DATA2$Dist <- lookup(terms = DATA2$Speaker,
+                        key.match = DATA2a$Speaker,
+                        key.reassign = DATA2a$DownUp)
+
+#Plot
+
+DATA2 <- DATA2[order(DATA2$Dist),]
+
+DATA2$X <- rep(1:15, each = 2)
+
+DATA2$Position <- ifelse(DATA2$Position == "1", "/ɪ/-shift", "/æ/-shift")
+
+DATA2$Position <- factor(DATA2$Position, levels = c("/ɪ/-shift", "/æ/-shift"))
+
+ggplot(data = DATA2) + 
+  theme_classic() +
+  ylab("F2 change (mel)") + 
+  xlab("Individual speaker") + 
+  geom_vline(xintercept = 4.5, color = "black", linetype = "dotted") + 
+  geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
+  geom_errorbar(aes(x = X, y = F2_Transfer,
+                    ymin = Lo,
+                    ymax = Hi,
+                    color = Position),
+                width = 0.5, linewidth = 1) +
+  geom_point(aes(x = X, y = F2_Transfer, 
+                 color = Position, shape = Position),
+             size = 3, stroke = 1) +
+  theme(legend.title = element_blank(),
+        legend.position = c(0.50, 0.9),
+        legend.text = element_text(size = 10),
+        legend.background = element_blank(),
+        legend.direction = "horizontal",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 15),
+        strip.text = element_text(size = 15),
+        plot.title = element_text(size = 15, face = "bold")) + 
+  scale_color_manual(values = c("blue", "red")) +
+  scale_shape_manual(values = c(1, 15)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-100, 100),
+                     breaks = c(-100, -50, 0, 50, 100)) 
+
+#Log non-adapters
+
+#"sp638", "sp628", "sp620", "sp631"
+
+var2 <- unique(data2a$Speaker)
+var2 <- var2[!var2 %in% c("sp638", "sp628", "sp620", "sp631")]
+
+save.image("3_Exp2_Transfer.RData")
+```
+
+#Test the maintainance of adaptation in bedhead at the group level
+
+```{r}
+#data prep
+data2a$Item <- factor(data2a$Item)
+
+contrasts(data2a$Item) = contr.sum(2)
+
+contrasts(data2a$Item)
+
+data2a$List <- factor(data2a$List)
+
+contrasts(data2a$List) = contr.sum(2)
+
+contrasts(data2a$List)
+```
+
+```{r}
+f0 <- F2_Transfer ~ Item * List + 
+  (Item * List | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2a,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    crit = "BIC", 
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(F2 <- formula(m.order@model))
+
+m.backward <- buildmer(F2,
+                       data = data2a,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m2a <- lmer(f2,
+           data = data2a,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m2a)
+
+car::Anova(m2a, type = 3)
+
+save.image("3_Exp2_Transfer.RData")
+
+testInteractions(m2a, 
+                 fixed = c("Item"))
+```
+
+```{r}
+#Summary
+aggregate(data2a$F2_Transfer,
+          list(data2a$Item), 
+          FUN = plotrix::std.error) 
+
+#Effect size
+
+r2beta(m2a, partial = TRUE, 
+       method = "nsj")
+
+#Cohen's d, Direction
+
+temp1 <- data2a[which(data2a$Item == "1"), "F2_Transfer"]
+temp2 <- data2a[which(data2a$Item == "2"), "F2_Transfer"]
+
+cohen.d(temp1, temp2)
+```
+
+```{r}
+#Save
+
+save.image("3_Exp2_Transfer.RData")
+```
+

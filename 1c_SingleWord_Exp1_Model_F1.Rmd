@@ -1,0 +1,119 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord/acousticdata/R_Zyy")
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+
+library(lme4)
+library(lmerTest)
+library(buildmer)
+library(phia)
+
+library(r2glmm)
+library(effsize)
+
+rm(list = ls())
+
+load("1_Exp1.RData")
+```
+
+#Model, F1
+
+```{r}
+#data
+
+table(data1a$Phase, data1a$Block)
+
+data1a$Shift <- factor(data1a$Shift)
+
+contrasts(data1a$Shift) = contr.sum(2)
+
+contrasts(data1a$Shift)
+
+data1a$Phase <- factor(data1a$Phase)
+
+contrasts(data1a$Phase) = contr.sum(2)
+
+contrasts(data1a$Phase)
+
+data1a$List <- factor(data1a$List)
+
+contrasts(data1a$List) = contr.sum(2)
+
+contrasts(data1a$List)
+```
+
+```{r}
+f0 <- F1_Change ~ Shift * Phase * List + 
+  (Shift * Phase * List | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data1a,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    crit = "BIC", 
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data1a,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1 <- lmer(f2,
+           data = data1a,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1)
+
+car::Anova(m1, type = 3)
+
+save.image("1_Exp1.RData")
+
+testInteractions(m1, 
+                 fixed = c("Shift"))
+```
+
+```{r}
+#Summary
+aggregate(data1a$F1_Change,
+          list(data1a$Shift), 
+          FUN = plotrix::std.error) 
+
+#Effect size
+
+r2beta(m1, partial = TRUE, 
+       method = "nsj")
+
+#Cohen's d, Direction
+
+temp1 <- data1a[which(data1a$Shift == "/ɪ/-shift"), "F1_Change"]
+temp2 <- data1a[which(data1a$Shift == "/æ/-shift"), "F1_Change"]
+
+cohen.d(temp1, temp2)
+```
+
+```{r}
+#Save
+save.image("1_Exp1.RData")
+```
+
+
+

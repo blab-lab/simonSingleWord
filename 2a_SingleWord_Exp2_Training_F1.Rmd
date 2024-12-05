@@ -1,0 +1,331 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy")
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+
+rm(list = ls())
+```
+
+#Import Experiment 2 data
+
+```{r}
+data1 <- read.csv("1_Formant/2_ProceesedData/3_Formants_Mean_Trial.csv")
+
+table(data1$Word, data1$Item)
+
+#Adding Shift Info
+
+data1$Shift1 <- substr(data1$List, start = 6, stop = 7)
+data1$Shift2 <- substr(data1$List, start = 13, stop = 14)
+
+data1$Shift <- ifelse(data1$Item == 1, data1$Shift1, data1$Shift2)
+
+#Background info
+
+length(unique(data1$Speaker))
+
+#Relevel
+
+data1$Shift <- ifelse(data1$Shift == "AE", "/æ/-shift", "/ɪ/-shift")
+  
+data1$Shift <- factor(data1$Shift, levels = c("/ɪ/-shift",
+                                             "/æ/-shift"))
+```
+
+```{r}
+#Restrict data to training
+
+unique(data1$Phase)
+
+data1 <- data1[which(data1$Phase %in% c("Baseline", "Ramp", "Hold", "Washout")), ]
+```
+
+```{r}
+##Normalization; Baseline
+
+data1$Block <- ceiling(data1$Trial/10)
+
+table(data1$Phase, data1$Block)
+
+#Recode Block
+
+length(unique(data1$Block))
+
+data1$Block <- ifelse(data1$Block == 42, 26, data1$Block - 8)
+
+temp1 <- data1[which(data1$Phase == "Baseline"), ]
+
+range(temp1$Block)
+
+#Reference data1
+
+temp1 <- data1[which(data1$Block == 2),]
+
+temp2 <- aggregate(temp1$meanF1_mel,
+                   list(temp1$Item, temp1$Speaker),
+                   FUN = mean)
+
+colnames(temp2) <- c("Item", "Speaker", "F1_mean")
+
+temp2$Tracer <- paste(temp2$Speaker, temp2$Item, sep = "_")
+
+#Match
+data1$Tracer <- paste(data1$Speaker, data1$Item, sep = "_")
+
+data1$F1_Ref <- lookup(terms = data1$Tracer,
+                      key.match = temp2$Tracer,
+                      key.reassign = temp2$F1_mean)
+
+#Normalization
+
+data1$F1_Change <- data1$meanF1_mel - data1$F1_Ref
+```
+
+```{r}
+#Visualization
+
+summary1 <- aggregate(data1$F1_Change,
+                   list(data1$Shift, data1$Block),
+                   FUN = mean)
+
+colnames(summary1) <- c("Shift", "Block", "F1_Change")
+
+temp1 <- aggregate(data1$F1_Change,
+                   list(data1$Shift, data1$Block),
+                   FUN = plotrix::std.error)
+
+summary1$se <- temp1$x
+  
+summary1$Block <- as.numeric(as.character(summary1$Block))
+
+table(data1$Phase, data1$Block)
+
+temp1 <- summary1[which(summary1$Block != "26"), ]
+temp2 <- summary1[which(summary1$Block == "26"), ]
+
+temp2$Block <- 26.5
+
+ggplot(data = temp1) +
+  theme_classic() +
+  geom_hline(yintercept = 0, linetype = "solid", 
+             color = "gray50", linewidth = 0.5) + 
+  geom_vline(xintercept = 2.5, linetype = "dotted", 
+             color = "gray50", linewidth = 1) + 
+  geom_vline(xintercept = 5.5, linetype = "dotted", 
+             color = "gray50", linewidth = 1) + 
+  geom_vline(xintercept = 25.5, linetype = "dotted", 
+             color = "gray50", linewidth = 1) + 
+  annotate("rect", xmin = 24.35, xmax = 25.5, ymin = -50, ymax = 50,
+           alpha = 0.2, fill = "yellow") + 
+  annotate("rect", xmin = 25.9, xmax = 26.9, ymin = -50, ymax = 50,
+           alpha = 0.2, fill = "yellow") + 
+  ylab("F1 change (mel)") +
+  xlab("Block of 10 trials") +
+  geom_errorbar(aes(x = Block, y = F1_Change,
+                    ymin = F1_Change - se,
+                    ymax = F1_Change + se,
+                    color = Shift),
+                width = 0.5, linewidth = 1) +
+  geom_point(aes(x = Block, y = F1_Change, 
+                 color = Shift, shape = Shift),
+             size = 2.5, stroke = 1) +
+  geom_line(aes(x = Block, y = F1_Change,
+                color = Shift, group = Shift),
+            linewidth = 0.8) +
+  geom_errorbar(data = temp2, aes(x = Block, y = F1_Change,
+                    ymin = F1_Change - se,
+                    ymax = F1_Change + se,
+                    color = Shift),
+                width = 0.5, linewidth = 1) +
+  geom_point(data = temp2, aes(x = Block, y = F1_Change, 
+                 color = Shift, shape = Shift),
+             size = 2.5, stroke = 1) +
+  annotate(geom = "text", x = 1, y = 38, label = "Baseline",
+           angle = 70, color = "black" ) + 
+  annotate(geom = "text", x = 4, y = 38, label = "Ramp",
+           angle = 70, color = "black" ) + 
+  annotate(geom = "text", x = 16, y = 38, label = "Hold",
+           angle = 70, color = "black" ) + 
+  annotate(geom = "text", x = 27, y = 38, label = "Washout",
+           angle = 70, color = "black" ) + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 15),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), 
+        axis.title = element_text(size = 15)) +
+  scale_color_manual(values = c("blue", "red")) + 
+  scale_shape_manual(values = c(1, 15)) + 
+  scale_y_continuous(expand = c(0, 0), limits = c(-50, 50),
+                     breaks = c(-40, -20, 0, 20, 40)) + 
+  scale_x_continuous(breaks = c(1, 3, 6, 26.5),
+                     labels = c("10", "30", "60", ""),
+                     limits = c(0.7, 27))
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure3A.png",
+       units = "in",
+       width = 3.5,
+       height = 3.5)
+```
+
+```{r}
+#Plot individual data
+
+table(data1$Phase, data1$Block)
+
+data1a <- data1[which(data1$Block %in% c(25, 26)), ]
+
+summary1a <- aggregate(data1a$F1_Change,
+                      list(data1a$Shift, data1a$Phase,
+                           data1a$Speaker),
+                      FUN = mean)
+
+colnames(summary1a) <- c("Direction", "Phase", "Speaker", "F1_Change")
+
+ggplot(data = summary1a) +
+  theme_classic() +
+  facet_grid(. ~ Phase) + 
+  geom_hline(yintercept = 0, linetype = "solid", 
+             color = "gray50", linewidth = 0.5) +
+  geom_point(aes(x = Direction, y = F1_Change, 
+                 color = Speaker),
+             size = 1.5) +
+  geom_line(aes(x = Direction, y = F1_Change, 
+                color = Speaker, group = Speaker),
+            linewidth = 0.7, alpha = 0.5) + 
+  xlab("Place Holder") +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(colour = "white"),
+        strip.text = element_text(size = 15)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-115, 85),
+                     breaks = c(-100, -50, 0, 50)) 
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure3B.png",
+       units = "in",
+       width = 3.5,
+       height = 3.5)
+```
+
+```{r}
+#Save
+save.image("2_Exp2_Training.RData")
+```
+
+#Model, F1
+
+```{r}
+#data
+
+table(data1a$Phase, data1a$Block)
+
+data1a$Shift <- factor(data1a$Shift)
+
+contrasts(data1a$Shift) = contr.sum(2)
+
+contrasts(data1a$Shift)
+
+data1a$Phase <- factor(data1a$Phase)
+
+contrasts(data1a$Phase) = contr.sum(2)
+
+contrasts(data1a$Phase)
+
+data1a$List <- factor(data1a$List)
+
+contrasts(data1a$List) = contr.sum(2)
+
+contrasts(data1a$List)
+```
+
+```{r}
+f0 <- F1_Change ~ Shift * Phase * List + 
+  (Shift * Phase * List | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data1a,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    crit = "BIC", 
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data1a,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1 <- lmer(f2,
+           data = data1a,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1)
+
+car::Anova(m1, type = 3)
+
+save.image("2_Exp2_Training.RData")
+
+testInteractions(m1, 
+                 fixed = c("Shift"))
+
+testInteractions(m1, 
+                 pairwise = c("Shift"))
+
+testInteractions(m1, 
+                 fixed = c("Shift"),
+                 pairwise = c("Phase"))
+
+testInteractions(m1, 
+                 fixed = c("Phase"),
+                 pairwise = c("Shift"))
+
+testInteractions(m1, 
+                 fixed = c("Phase", "Shift"))
+
+testInteractions(m1, 
+                 pairwise = c("Phase", "Shift"))
+```
+
+```{r}
+#Summary
+aggregate(data1a$F1_Change,
+          list(data1a$Shift), 
+          FUN = plotrix::std.error) 
+
+#Effect size
+
+r2beta(m1, partial = TRUE, 
+       method = "nsj")
+
+#Cohen's d, Direction
+
+temp1 <- data1a[which(data1a$Shift == "/ɪ/-shift"), "F1_Change"]
+temp2 <- data1a[which(data1a$Shift == "/æ/-shift"), "F1_Change"]
+
+cohen.d(temp1, temp2)
+```
+
+```{r}
+#Save
+save.image("2_Exp2_Training.RData")
+```
+

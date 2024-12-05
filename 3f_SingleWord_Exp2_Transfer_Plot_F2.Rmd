@@ -1,0 +1,500 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy")
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+library(ez)
+
+load("3_Exp2_Transfer.RData")
+```
+
+#Bootstrap confidence intervals
+
+```{r}
+#Data prep
+
+data2d <- data2[which(data2$Word == "bedhead"), ]
+
+#Exclude non-adapters
+
+data2d <- data2d[which(data2d$Speaker %in% var2), ]
+
+temp1 <- ezBoot(data = data2d, 
+                dv = F2_Transfer, 
+                within = .(Item),
+                wid = .(Speaker),
+                resample_within = TRUE,
+                iterations = 1e4)
+
+#Extract data
+temp2 <- ezPlot2(preds = temp1,
+                 x = Item, 
+                 CI = .95, 
+                 do_plot = FALSE, 
+                 print_code = TRUE)
+
+temp3 <- temp2$boot_stats ## CI
+temp4 <- temp2$cells ## Mean
+
+temp5 <- merge(temp3, temp4,
+                      by = c("Item")) 
+
+colnames(temp5) <- c("Position", "Lo", "Hi", "CI", "F2_Transfer")
+
+Summary2 <- temp5
+
+```
+
+#Plot trained word
+
+```{r}
+#Prep 
+Summary2a <- aggregate(data2d$F2_Transfer,
+                      list(data2d$Item),
+                      FUN = mean)
+
+colnames(Summary2a) <- c("Position", "F2_Transfer")
+
+temp1 <- aggregate(data2d$F2_Transfer,
+                      list(data2d$Item),
+                      FUN = plotrix::std.error)
+
+Summary2a$se <- temp1$x
+
+Summary2a$Header <- "Trained word"
+
+Summary2a$X <- c(1.3, 1.7)
+```
+
+```{r}
+#Group plot
+ggplot() +
+  theme_classic() +
+  facet_grid(. ~ Header) + 
+  ylab("F2 Change (mel)") +
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  geom_hline(yintercept = 0, linetype = "dotted", 
+             color = "black", linewidth = 0.5) +
+  geom_errorbar(data = Summary2a, aes(x = X, y = F2_Transfer,
+                                   ymin = F2_Transfer - se,
+                                   ymax = F2_Transfer + se,
+                                   color = factor(Position)),
+                width = 0.15, linewidth = 2) + 
+  geom_line(data = Summary2a, aes(x = X , y = F2_Transfer), 
+            color = "gray", linetype = "dashed", linewidth = 1) +
+  geom_point(data = Summary2a, aes(x = X, y = F2_Transfer, 
+                               color = factor(Position), shape = factor(Position)),
+             size = 5, stroke = 1) + 
+  scale_color_manual(values = c("blue", "red")) +
+  scale_shape_manual(values = c(1, 15)) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.line.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 30),
+        axis.title = element_text(size = 35),
+        strip.text = element_text(size = 45)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(1, 2)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-35, 25),
+                     breaks = seq(from = -40, by = 10, to = 30))
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure6A.png",
+       units = "in",
+       width = 5,
+       height = 10)
+```
+
+```{r}
+#Add individual data
+temp1 <- aggregate(data2d$F2_Transfer,
+                      list(data2d$Item, data2d$Speaker),
+                      FUN = mean)
+
+colnames(temp1) <- c("Position", "Speaker", "F2_Transfer")
+
+Summary2a$X_Adj <- ifelse(Summary2a$Position == "1", 1.2, 1.8)
+
+temp1$X <- ifelse(temp1$Position == "1", 1.2, 1.8)
+
+ggplot() +
+  theme_classic() +
+  facet_grid(. ~ Header) + 
+  ylab("F2 Change (mel)") +
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  geom_hline(yintercept = 0, linetype = "dotted", 
+             color = "black", linewidth = 0.5) +
+  geom_point(data = temp1, aes(x = X , y = F2_Transfer, color = Speaker),
+            size = 3, alpha = 0.4) +
+  geom_line(data = temp1, aes(x = X , y = F2_Transfer, color = Speaker),
+            linewidth = 1, alpha = 0.4) +
+  geom_errorbar(data = Summary2a, aes(x = X, y = F2_Transfer,
+                                   ymin = F2_Transfer - se,
+                                   ymax = F2_Transfer + se,
+                                   color = factor(Position)),
+                width = 0.15, linewidth = 2, 
+                color = c("blue", "red")) + 
+  geom_point(data = Summary2a, aes(x = X, y = F2_Transfer, 
+                               color = factor(Position), shape = factor(Position)),
+             size = 5, stroke = 1,
+             color = c("blue", "red")) + 
+  scale_shape_manual(values = c(1, 15)) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.line.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 30),
+        axis.title = element_text(size = 35),
+        strip.text = element_text(size = 45)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(1, 2)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-85, 55),
+                     breaks = seq(from = -80, by = 20, to = 80))
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure7A.png",
+       units = "in",
+       width = 5,
+       height = 10)
+```
+
+
+#Plot trained syllables
+
+```{r}
+#Plot, trained syllables
+
+temp1 <- data2[which(data2$Syllable %in% c("bed", "head")), ]
+temp1 <- temp1[which(temp1$Word != "bedhead"), ]
+temp1 <- temp1[which(temp1$Speaker %in% var2), ]
+
+
+Summary2b <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Content),
+                      FUN = mean)
+
+colnames(Summary2b) <- c("Content", "F2_Transfer")
+
+temp2 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Content),
+                      FUN = plotrix::std.error)
+
+Summary2b$se <- temp2$x
+
+Summary2b$Header <- "Trained syllables"
+
+
+Summary2b$X <- c(3.5, 1.3, 2.7,
+                 3.5, 2.3, 1.7)
+
+Summary2b$Color <- c("blue", "blue", "blue", 
+                 "red", "red", "red")
+
+Summary2b$Line <- c(1, 2, 3, 
+                    1, 3, 2)
+```
+
+```{r}
+#Group plot
+
+ggplot() +
+  theme_classic() +
+  facet_grid(. ~ Header) + 
+  annotate("rect", xmin = 1, xmax = 4, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 1, xmax = 4, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  geom_hline(yintercept = 0, linetype = "dotted", 
+             color = "black", linewidth = 0.5) +
+  geom_errorbar(data = Summary2b, aes(x = X, y = F2_Transfer,
+                                   ymin = F2_Transfer - se,
+                                   ymax = F2_Transfer + se,
+                                   color = Color),
+                width = 0.25, linewidth = 2) + 
+  geom_line(data = Summary2b, aes(x = X , y = F2_Transfer, group = factor(Line)), 
+            color = "gray", linetype = "dashed", linewidth = 1) +
+  geom_point(data = Summary2b, aes(x = X, y = F2_Transfer, 
+                               color = factor(Color), shape = factor(Color)),
+             size = 5, stroke = 1) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_shape_manual(values = c(1, 15)) +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text  = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        strip.text = element_text(size = 45)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(1, 4)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-35, 25))
+
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure6B.png",
+       units = "in",
+       width = 8,
+       height = 10)
+```
+
+```{r}
+#Add individual data
+
+temp2 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Content, temp1$Speaker),
+                      FUN = mean)
+
+colnames(temp2) <- c("Content", "Speaker", "F2_Transfer")
+
+Summary2b$X_Adj <- c(3.2, 1.2, 2.8,
+                     3.8, 2.2, 1.8)
+
+temp2$X <- lookup(terms = temp2$Content,
+                  key.match = Summary2b$Content,
+                  key.reassign = Summary2b$X_Adj)
+
+temp2$ID <- floor(temp2$X)
+temp2$Line <- paste(temp2$Speaker, temp2$ID, sep = "_")
+
+ggplot() +
+  theme_classic() +
+  facet_grid(. ~ Header) + 
+  annotate("rect", xmin = 1, xmax = 4, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 1, xmax = 4, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  geom_hline(yintercept = 0, linetype = "dotted", 
+             color = "black", linewidth = 0.5) +
+  geom_point(data = temp2, aes(x = X , y = F2_Transfer, color = Speaker),
+            size = 3, alpha = 0.4) +
+  geom_line(data = temp2, aes(x = X , y = F2_Transfer, color = Speaker, group = Line),
+            linewidth = 1, alpha = 0.4) +
+  geom_errorbar(data = Summary2b, aes(x = X_Adj, y = F2_Transfer,
+                                   ymin = F2_Transfer - se,
+                                   ymax = F2_Transfer + se,
+                                   color = Color),
+                width = 0.25, linewidth = 2,
+                color = c("blue", "blue", "blue", "red", "red", "red")) + 
+  geom_point(data = Summary2b, aes(x = X_Adj, y = F2_Transfer, 
+                               color = factor(Color), shape = factor(Color)),
+             size = 5, stroke = 1,
+             color = c("blue", "blue", "blue", "red", "red", "red")) +
+  scale_shape_manual(values = c(1, 15)) +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text  = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        strip.text = element_text(size = 45)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(1, 4)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-85, 55))
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure7B.png",
+       units = "in",
+       width = 8,
+       height = 10)
+```
+
+
+#Plot novel syllables
+
+```{r}
+#Data prep, Overall
+temp1 <- data2[which(data2$Type1 == "Novel"), ]
+temp1 <- temp1[which(temp1$Speaker %in% var2), ]
+
+temp2 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Item),
+                      FUN = mean)
+
+colnames(temp2) <- c("Position", "F2_Transfer")
+
+temp3 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Item),
+                      FUN = plotrix::std.error)
+
+temp2$se <- temp3$x
+
+temp2$Content <- "Overall"
+
+##Individual items
+
+temp3 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Content),
+                      FUN = mean)
+
+temp4 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Content),
+                      FUN = plotrix::std.error)
+
+temp3$se <- temp4$x
+
+temp3$Position <- c("2", "1", "2", "1", "2", "1")
+
+colnames(temp3) <- c("Content", "F2_Transfer", "se", "Position")
+
+temp3 <- temp3[, c("Position", "F2_Transfer", "se", "Content")]
+
+#Combine data
+
+Summary2c <- rbind(temp2, temp3)
+
+Summary2c$X <- c(1.3, 1.7, 2.7, 4.3, 
+             4.7, 3.3, 3.7, 2.3)
+
+Summary2c$Line <- c(1, 1, 2, 4, 
+                    4, 3, 3, 2)
+
+Summary2c$Header <- "Novel syllables"
+```
+
+```{r}
+#Group plot
+ggplot() +
+  theme_classic() +
+  facet_grid(. ~ Header) + 
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  annotate("rect", xmin = 2.1, xmax = 5, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 2.1, xmax = 5, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  geom_hline(yintercept = 0, linetype = "dotted", 
+             color = "black", linewidth = 0.5) +
+  geom_errorbar(data = Summary2c, aes(x = X, y = F2_Transfer,
+                                   ymin = F2_Transfer - se,
+                                   ymax = F2_Transfer + se),
+                width = 0.25, linewidth = 2, color = "#ED7D21") + 
+  geom_line(data = Summary2c, aes(x = X , y = F2_Transfer, group = factor(Line)), 
+            color = "gray", linetype = "dashed", linewidth = 1) +
+  geom_point(data = Summary2c, aes(x = X, y = F2_Transfer, 
+                               shape = factor(Position)),
+             size = 5, stroke = 1, color = "#ED7D21") +
+  scale_shape_manual(values = c(1, 15)) +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text  = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        strip.text = element_text(size = 45)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(1, 5)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-35, 25))
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure6C.png",
+       units = "in",
+       width = 12,
+       height = 10)
+```
+
+```{r}
+#Add individual data
+
+##Overall values
+temp2 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Item, temp1$Speaker),
+                      FUN = mean)
+
+colnames(temp2) <- c("Position", "Speaker", "F2_Transfer")
+
+temp2$Content <- "Overall"
+
+temp2$X <- ifelse(temp2$Position == "1", 1.2, 1.8)
+
+##By-group
+
+temp3 <- aggregate(temp1$F2_Transfer,
+                      list(temp1$Content, temp1$Speaker),
+                      FUN = mean)
+
+colnames(temp3) <- c("Content", "Speaker", "F2_Transfer")
+
+Summary2c$X_Adj <- c(1.2, 1.8, 2.8, 4.2, 
+                    4.8, 3.2, 3.8, 2.2)
+
+temp3$X <- lookup(terms = temp3$Content,
+                  key.match = Summary2c$Content,
+                  key.reassign = Summary2c$X_Adj)
+
+#Combine data
+
+temp4 <- rbind(temp2[, c("X", "Speaker", "Content", "F2_Transfer")], 
+               temp3[, c("X", "Speaker", "Content", "F2_Transfer")])
+
+temp4$ID <- floor(temp4$X)
+temp4$Line <- paste(temp4$Speaker, temp4$ID, sep = "_")
+```
+
+```{r}
+ggplot() +
+  theme_classic() +
+  facet_grid(. ~ Header) + 
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 1, xmax = 2, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  annotate("rect", xmin = 2.1, xmax = 5, 
+           ymin = Summary2$Lo[1], ymax = Summary2$Hi[1], 
+           alpha = 0.1, fill= "blue") + 
+  annotate("rect", xmin = 2.1, xmax = 5, 
+           ymin = Summary2$Lo[2], ymax = Summary2$Hi[2], 
+           alpha = 0.1, fill= "red") + 
+  geom_hline(yintercept = 0, linetype = "dotted", 
+             color = "black", linewidth = 0.5) +
+  geom_point(data = temp4, aes(x = X , y = F2_Transfer, color = Speaker),
+            size = 3, alpha = 0.4) +
+  geom_line(data = temp4, aes(x = X , y = F2_Transfer, color = Speaker, group = Line),
+            linewidth = 1, alpha = 0.4) +
+  geom_errorbar(data = Summary2c, aes(x = X_Adj, y = F2_Transfer,
+                                   ymin = F2_Transfer - se,
+                                   ymax = F2_Transfer + se),
+                width = 0.25, linewidth = 2, color = "#ED7D21") + 
+  geom_point(data = Summary2c, aes(x = X_Adj, y = F2_Transfer, 
+                               shape = factor(Position)),
+             size = 5, stroke = 1, color = "#ED7D21") +
+  scale_shape_manual(values = c(1, 15)) +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text  = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        strip.text = element_text(size = 45)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(1, 5)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-85, 55))
+
+ggsave(filename = "G:/Shared drives/SMNG/Experiments/simonSingleWord/Manuscript/PlotGen/Figure7C.png",
+       units = "in",
+       width = 12,
+       height = 10)
+```
+
+```{r}
+#Save
+
+save.image("3_Exp2_Transfer.RData")
+```

@@ -1,0 +1,19 @@
+# matlab autosave files
+*.asv
+*.m~
+
+# text files
+*.txt
+
+# folder metadata
+*.DS_Store
+
+# NMT software
+./cicero/NMT_do_not_track/*
+
+# Voystick Config File
+!/voystick/config.default.txt
+
+# Ignore Working version of Audapter .ost and .pcf files. (Only track Master versions)
+*Working.ost
+*Working.pcf

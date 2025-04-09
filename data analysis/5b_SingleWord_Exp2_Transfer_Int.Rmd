@@ -1,0 +1,497 @@
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(444) #Set up random seed for reproducibility
+
+setwd("//wcs-cifs/wc/smng/experiments/simonSingleWord_v2/acousticdata/R_Zyy")
+
+
+options(scipen = 999) #Turn off scientific expressions
+
+library(tidyverse)
+library(qdapTools)
+
+load("4_Exp2_Prosody.RData")
+```
+
+#Import data
+```{r}
+#List all files
+
+seq1 <- list.files(pattern = "_Int.csv",
+                   path = "./2_Prosody")
+
+#Read data
+TEMP1 <- c()
+
+for(i in unique(seq1)) {
+  
+  temp1 <- read.csv(paste0("./2_Prosody/", i))
+  
+  temp1$Duration = temp1$Duration * 1000
+  
+  TEMP1 <- rbind(TEMP1, temp1)
+  
+}
+```
+
+```{r}
+data2 <- TEMP1
+
+head(data2)
+
+data2$Phase <- ifelse(data2$Phase == "transfer1",
+                      "Pre", "Post")
+
+unique(data2$Phase)
+
+unique(data2$Word)
+
+data2 <- data2[-which(data2$Word %in% c("bed", "head")), ]
+
+unique(data2$Word)
+
+data2$Chunk <- paste(data2$Word, data2$Syllable, sep = "_")
+
+unique(data2$Syllable)
+```
+
+#Clean data
+```{r}
+unique(data2$Phase)
+
+head(data2)
+
+data2$Tracer <- paste(data2$Speaker, data2$Trial, data2$Chunk, sep = "_")
+
+TEMP1 <- c()
+
+for(i in unique(data2$Tracer)) {
+  
+  temp1 <- data2[which(data2$Tracer == i), ]
+  
+  temp1 <- temp1[which(temp1$Int!= "NaN"), ]
+  
+  if(nrow(temp1) > 0) {
+    
+    temp1$Pos <- seq(from = 0, to = 100, length.out = nrow(temp1))
+    
+    temp1$Int_Max <- max(temp1$Int)
+    temp1$Int_Mean <- mean(temp1$Int)
+    
+    temp2 <- temp1[1, ]
+    
+    TEMP1 <- rbind(TEMP1, temp2)
+   }
+  
+}
+```
+
+```{r}
+data2 <- TEMP1
+```
+
+#Int_Mean, Plot
+
+```{r}
+#Plot >>> Data prep, Group
+temp1 <- aggregate(data2$Int_Mean,
+                   list(data2$Word, data2$Syllable, data2$Phase),
+                   FUN = mean)
+
+colnames(temp1) <- c("Word", "Syllable", "Phase", "Mean")
+
+temp2 <- aggregate(data2$Int_Mean,
+                   list(data2$Word, data2$Syllable, data2$Phase),
+                   FUN = plotrix::std.error)
+
+temp1$SE <- temp2$x
+```
+
+```{r}
+temp1$Line <- paste(temp1$Word, temp1$Phase, sep = "_")
+
+temp1$Phase <- ifelse(temp1$Phase == "Pre", "Pre-training", "Post-training")
+
+temp1$Phase <- factor(temp1$Phase, levels = c("Pre-training", "Post-training"))
+
+temp1$Word <- factor(temp1$Word, levels = c("bedhead", "bedspread", "redhead", 
+                                            "deathbed", "headrest", "breastfed"))
+
+ggplot() +
+  theme_classic() +
+  ylab("Mean RMS intensity (dB)") + 
+  facet_grid(. ~ Word) + 
+  geom_point(data = temp1, 
+             aes(x = Syllable, y = Mean, 
+                 color = Phase, shape = Phase)) + 
+  geom_line(data = temp1,
+            aes(x = Syllable, y = Mean, color = Phase, group = Line)) +
+  geom_errorbar(data = temp1,
+                aes(x = Syllable, 
+                    ymin = Mean - SE,
+                    ymax = Mean + SE,
+                    color = Phase),
+                width = 0.6) +
+  scale_color_manual(values = c("black", "gray50")) +
+  scale_shape_manual(values = c(15, 1)) +
+  theme(legend.title = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()) 
+
+ggsave(filename = paste0("temp1c.png"),
+       width = 11/1.6,
+       height = 4/1.6,
+       units = "in",
+       dpi = 600)
+```
+
+#Int, Max plot
+```{r}
+#Data prepe
+temp1 <- aggregate(data2$Int_Max,
+                   list(data2$Word, data2$Syllable, data2$Phase),
+                   FUN = mean)
+
+colnames(temp1) <- c("Word", "Syllable", "Phase", "Mean")
+
+temp2 <- aggregate(data2$Int_Max,
+                   list(data2$Word, data2$Syllable, data2$Phase),
+                   FUN = plotrix::std.error)
+
+temp1$SE <- temp2$x
+```
+
+```{r}
+temp1$Line <- paste(temp1$Word, temp1$Phase, sep = "_")
+
+temp1$Phase <- ifelse(temp1$Phase == "Pre", "Pre-training", "Post-training")
+
+temp1$Phase <- factor(temp1$Phase, levels = c("Pre-training", "Post-training"))
+
+temp1$Word <- factor(temp1$Word, levels = c("bedhead", "bedspread", "redhead", 
+                                            "deathbed", "headrest", "breastfed"))
+
+ggplot() +
+  theme_classic() +
+  ylab("Maximal RMS intensity (dB)") + 
+  facet_grid(. ~ Word) + 
+  geom_point(data = temp1, 
+             aes(x = Syllable, y = Mean, 
+                 color = Phase, shape = Phase)) + 
+  geom_line(data = temp1,
+            aes(x = Syllable, y = Mean, color = Phase, group = Line)) +
+  geom_errorbar(data = temp1,
+                aes(x = Syllable, 
+                    ymin = Mean - SE,
+                    ymax = Mean + SE,
+                    color = Phase),
+                width = 0.6) +
+  scale_color_manual(values = c("black", "gray50")) +
+  scale_shape_manual(values = c(15, 1)) +
+  theme(legend.title = element_blank(),
+        legend.background = element_blank(),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()) + 
+  scale_y_continuous(breaks = seq(from = 10, to = 40, by = 5))
+
+ggsave(filename = paste0("temp1d.png"),
+       width = 11/1.6,
+       height = 4/1.6,
+       units = "in",
+       dpi = 600)
+
+```
+
+```{r}
+#Save
+save.image("4_Exp2_Prosody.RData")
+```
+
+
+
+#Model Int_Max, all
+
+```{r}
+head(data2)
+
+f0 <- Int_Max ~ Word * Syllable * Phase + 
+  (Word * Syllable * Phase | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data2,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1c <- lmer(f2,
+           data = data2,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1c)
+
+car::Anova(m1c, type = 3)
+
+testInteractions(m1c, 
+                 pairwise =  c("Syllable"),
+                 fixed = c("Word", "Phase"))
+```
+
+#Model Int_Max, F1 adapters
+```{r}
+data2a <- data2[-which(data2$Speaker %in% c("sp656", "sp638", "sp644")), ]
+```
+
+```{r}
+f0 <- Int_Max ~ Word * Syllable * Phase + 
+  (Word * Syllable * Phase | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2a,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data2a,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1c1 <- lmer(f2,
+           data = data2a,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1c1)
+
+car::Anova(m1c1, type = 3)
+
+testInteractions(m1c1, 
+                 pairwise =  c("Syllable"),
+                 fixed = c("Word", "Phase"))
+```
+
+#Model Int_Max, F2 adapters
+
+```{r}
+data2b <- data2[-which(data2$Speaker %in% c("sp626", "sp643", 
+                                           "sp648", "sp656", "sp657",
+                                           "sp638", "sp628", "sp620", "sp631")), ]
+
+```
+
+```{r}
+f0 <- Int_Max ~ Word * Syllable * Phase + 
+  (Word * Syllable * Phase | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2b,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f0,
+                       data = data2b,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+
+#Failure to converge; Resort to manual fitting
+```
+
+```{r}
+
+f2 <- Int_Max ~ Word + Syllable + Phase + 
+  (1 | Speaker)
+
+m1c2 <- lmer(f2,
+           data = data2b,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1c2)
+
+car::Anova(m1c2, type = 3)
+
+testInteractions(m1c2, 
+                 pairwise =  c("Syllable"),
+                 fixed = c("Word", "Phase"))
+```
+
+```{r}
+#Save
+save.image("4_Exp2_Prosody.RData")
+```
+
+#Model Int_Mean, all
+
+```{r}
+head(data2)
+
+f0 <- Int_Mean ~ Word * Syllable * Phase + 
+  (Word * Syllable * Phase | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data2,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1d <- lmer(f2,
+           data = data2,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1d)
+
+car::Anova(m1d, type = 3)
+
+testInteractions(m1d, 
+                 pairwise =  c("Syllable"),
+                 fixed = c("Word", "Phase"))
+```
+
+#Model Int_Max, F1 adapters
+
+```{r}
+f0 <- Int_Mean ~ Word * Syllable * Phase + 
+  (Word * Syllable * Phase | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2a,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f1,
+                       data = data2a,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+```
+
+```{r}
+m1d1 <- lmer(f2,
+           data = data2a,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1d1)
+
+car::Anova(m1d1, type = 3)
+
+testInteractions(m1d1, 
+                 pairwise =  c("Syllable"),
+                 fixed = c("Word", "Phase"))
+```
+
+#Model Int_Mean, F2 adapters
+
+```{r}
+f0 <- Int_Mean ~ Word * Syllable * Phase + 
+  (Word * Syllable * Phase | Speaker)
+
+m.order <- buildmer(f0,
+                    data = data2b,
+                    buildmerControl=buildmerControl(direction = "order",
+                                                    args=list(control=lmerControl(optimizer='bobyqa'))))
+
+(f1 <- formula(m.order@model))
+
+m.backward <- buildmer(f0,
+                       data = data2b,
+                       buildmerControl=list(direction = "backward",
+                                            crit = "BIC", 
+                                            args=list(control=lmerControl(optimizer='bobyqa'))))
+
+summary(m.backward)
+
+(f2 <- formula(m.backward@model))
+
+#Failure to converge; Resort to manual fitting
+```
+
+```{r}
+
+f2 <- Int_Mean ~ Word + Syllable + Phase + 
+  (1 | Speaker)
+
+m1c2 <- lmer(f2,
+           data = data2b,
+           control = lmerControl(optimizer = "bobyqa",
+                                 optCtrl = list(maxfun = 2e5)),
+           REML = TRUE)
+
+formula(m1c2)
+
+car::Anova(m1c2, type = 3)
+
+testInteractions(m1c2, 
+                 pairwise =  c("Syllable"),
+                 fixed = c("Word", "Phase"))
+```
+
+```{r}
+rm(m.backward)
+rm(m.order)
+
+rm(TEMP1)
+#Save
+save.image("4_Exp2_Prosody.RData")
+```
+

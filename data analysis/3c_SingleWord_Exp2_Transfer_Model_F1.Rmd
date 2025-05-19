@@ -396,6 +396,19 @@ testInteractions(m1c,
 
 testInteractions(m1c, 
                  fixed = c("Item", "Type1"))
+
+testInteractions(m1c, 
+                 pairwise = c("Type1"),
+                 fixed = c("Item",  "List"))
+
+testInteractions(m1c, 
+                 pairwise = c("Item"),
+                 fixed = c("Type1",  "List"))
+
+temp1 <- aggregate(data1c$F1_Transfer,
+          list(data1c$Item, data1c$List, data1c$Speaker), 
+          FUN = plotrix::std.error) 
+
 ```
 
 ```{r}
